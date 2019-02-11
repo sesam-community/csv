@@ -18,7 +18,7 @@ TO_CSV_DEFAULTS = {
     "csv_float_format": None,
     "csv_columns": "",
     "csv_header": "True",
-    "csv_index": "True",
+    "csv_index": "False",
     "csv_index_label": "_id",
     "csv_encoding": "utf-8",
     "csv_line_terminator": "\n",
@@ -78,6 +78,16 @@ TO_JSON_DEFAULTS = {
     "json_index": "True"
 }
 
+SESAM_FIELDS = [
+    "_id",
+    "_deleted",
+    "_updated",
+    "_hash",
+    "_previous",
+    "_ts",
+    "_tracked"
+]
+
 
 def json_to_csv(dict, args):
 
@@ -85,6 +95,9 @@ def json_to_csv(dict, args):
     csv_na_rep = args.get("csv_na_rep", TO_CSV_DEFAULTS.get("csv_na_rep"))
     csv_float_format = args.get("csv_float_format",
                                 TO_CSV_DEFAULTS.get("csv_float_format"))
+    sesam_fields_wl = args.get("sesam_fields_wl", "").split(",")
+    if sesam_fields_wl == [""]:
+        sesam_fields_wl = []
     csv_columns = args.get("csv_columns",
                            TO_CSV_DEFAULTS.get("csv_columns")).split(",")
     if csv_columns == [""]:
@@ -115,6 +128,11 @@ def json_to_csv(dict, args):
     csv_decimal = args.get("csv_decimal", TO_CSV_DEFAULTS.get("csv_decimal"))
 
     df = pd.DataFrame(dict)
+    logger.debug("Dropping columns %s",
+                 set(SESAM_FIELDS) - set(sesam_fields_wl))
+    df = df.drop(
+        columns=list(set(SESAM_FIELDS) - set(sesam_fields_wl)),
+        errors='ignore')
     if args.get("transit_decode", "").lower() == "true":
         df = df.replace("^~([rtbuf]|\:.*?\:)", "", regex=True)
 
@@ -317,7 +335,9 @@ def service_response(response_code, message):
 @app.route("/upload", methods=["POST"])
 def post():
     try:
-        url = request.args["url"]
+        url = request.args.get("url")
+        if not url:
+            return service_response(400, "missing mandatory variable")
         csv_data, shape = json_to_csv(request.get_json(), request.args)
         logger.debug(
             "POSTing (rows, columns)=%s amount of data to %s" % (shape,
@@ -335,8 +355,6 @@ def post():
 
 @app.route("/download", methods=["GET"])
 def get():
-    csv_data = None
-    json_data = None
     try:
         url = request.args.get("url")
         if not url:
