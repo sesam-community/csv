@@ -156,7 +156,7 @@ def json_to_csv(dict, args):
         date_format=csv_date_format,
         doublequote=csv_doublequote,
         escapechar=csv_escapechar,
-        decimal=csv_decimal), df.shape
+        decimal=csv_decimal), df.shape, csv_encoding
 
 
 def csv_to_json(url_or_buffer, args):
@@ -338,14 +338,14 @@ def post():
         url = request.args.get("url")
         if not url:
             return service_response(400, "missing mandatory variable")
-        csv_data, shape = json_to_csv(request.get_json(), request.args)
+        csv_data, shape, csv_encoding = json_to_csv(request.get_json(), request.args)
         logger.debug(
             "POSTing (rows, columns)=%s amount of data to %s" % (shape,
                                                                  url))
         r = requests.post(
             url,
-            data=csv_data,
-            headers={"Content-Type": "text/csv"})
+            data=csv_data.encode(csv_encoding),
+            headers={"Content-Type": "text/csv; charset: {}".format(csv_encoding)})
 
         return service_response(r.status_code, r.text)
     except Exception as e:
